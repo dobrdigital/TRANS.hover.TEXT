@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>TransHover</title>
+  <style>
+    body { width: 340px; margin: 0; padding: 12px; font: 13px/1.4 system-ui, sans-serif; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    h2 { font-size: 13px; margin: 14px 0 6px; color: #374151; }
+    label { display: block; margin-bottom: 8px; }
+    label.check { display: flex; gap: 6px; align-items: center; }
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%; box-sizing: border-box; margin-top: 3px; padding: 5px; font: inherit;
+    }
+    textarea { resize: vertical; }
+    button { padding: 6px 12px; font: inherit; cursor: pointer; }
+    .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    #status { color: #15803d; }
+    #status[data-error="true"] { color: #b91c1c; }
+    small { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <h1>TransHover</h1>
+
+  <label>Провайдер
+    <select id="provider">
+      <option value="openrouter">OpenRouter</option>
+      <option value="openai">OpenAI</option>
+    </select>
+  </label>
+
+  <label>Ключ OpenRouter
+    <input id="openrouterKey" type="password" autocomplete="off">
+  </label>
+
+  <label>Ключ OpenAI
+    <input id="openaiKey" type="password" autocomplete="off">
+  </label>
+
+  <label>Модель
+    <input id="model" type="text">
+    <small id="modelHint"></small>
+  </label>
+
+  <label>Язык перевода
+    <input id="targetLang" type="text" placeholder="Russian">
+  </label>
+
+  <h2>Эксперт</h2>
+  <label class="check">
+    <input id="autoExpert" type="checkbox"> Автоопределение эксперта
+  </label>
+  <label>Эксперт (при ручном выборе)
+    <select id="expert">
+      <option value="general">Общий</option>
+      <option value="literary">Литературный</option>
+      <option value="economic">Экономический</option>
+      <option value="medical">Медицинский</option>
+      <option value="technical">Технический</option>
+    </select>
+  </label>
+
+  <label>Дополнительный промпт
+    <textarea id="customPrompt" rows="4" placeholder="Например: сохраняй английские термины в скобках"></textarea>
+  </label>
+
+  <div class="row">
+    <button id="save">Сохранить</button>
+    <button id="translatePage">Перевести страницу</button>
+  </div>
+  <div class="row"><span id="status"></span></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

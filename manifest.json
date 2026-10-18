@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "TransHover",
+  "version": "0.2.0",
+  "description": "Перевод слова, предложения, абзаца или всей страницы под курсором через OpenRouter или OpenAI.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://openrouter.ai/*",
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "translate-page": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Перевести или вернуть оригинал страницы"
+    }
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TransHover"
+  }
+}

@@ -1,0 +1,44 @@
+#transhover-tooltip {
+  position: fixed;
+  z-index: 2147483647;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #1f2937;
+  color: #f9fafb;
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  white-space: pre-wrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+#transhover-tooltip[data-error="true"] {
+  background: #7f1d1d;
+}
+
+#transhover-tooltip[hidden] {
+  display: none;
+}
+
+#transhover-status {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 2147483647;
+  max-width: 360px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #1f2937;
+  color: #f9fafb;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+#transhover-status[data-error="true"] {
+  background: #7f1d1d;
+}
+
+#transhover-status[hidden] {
+  display: none;
+}
