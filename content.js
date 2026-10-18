@@ -61,11 +61,48 @@ async function loadHotkeys() {
 }
 
 loadHotkeys();
+
+// Клавиша перевода всей страницы, например 'alt+a' (модификаторы + клавиша).
+let pageHotkey = { key: 'a', ctrl: false, shift: false, alt: true };
+
+function parseCombo(str) {
+  const parts = str.split('+');
+  return {
+    key: parts[parts.length - 1],
+    ctrl: parts.includes('ctrl'),
+    shift: parts.includes('shift'),
+    alt: parts.includes('alt'),
+  };
+}
+
+async function loadPageHotkey() {
+  const s = await chrome.storage.local.get({ pageHotkey: 'alt+a' });
+  pageHotkey = parseCombo(s.pageHotkey);
+}
+
+loadPageHotkey();
+
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.hotkeyWord || changes.hotkeySentence || changes.hotkeyParagraph)) {
-    loadHotkeys();
-  }
+  if (area !== 'local') return;
+  if (changes.hotkeyWord || changes.hotkeySentence || changes.hotkeyParagraph) loadHotkeys();
+  if (changes.pageHotkey) loadPageHotkey();
 });
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const el = e.target;
+  // Не перехватываем клавиши, когда пользователь печатает в поле ввода.
+  if (el?.isContentEditable || el?.closest?.('input, textarea, select')) return;
+
+  const matches = e.key.toLowerCase() === pageHotkey.key
+    && e.ctrlKey === pageHotkey.ctrl
+    && e.shiftKey === pageHotkey.shift
+    && e.altKey === pageHotkey.alt;
+  if (!matches) return;
+
+  e.preventDefault();
+  togglePage();
+}, true);
 
 // Режим — тот, чья комбинация совпадает с нажатыми модификаторами целиком.
 function modeFromKeys(e) {

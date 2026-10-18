@@ -19,14 +19,6 @@
       "run_at": "document_idle"
     }
   ],
-  "commands": {
-    "translate-page": {
-      "suggested_key": {
-        "default": "Alt+Shift+T"
-      },
-      "description": "Перевести или вернуть оригинал страницы"
-    }
-  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "TransHover"

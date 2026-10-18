@@ -55,14 +55,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return false;
 });
 
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== 'translate-page') return;
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { type: 'togglePage' }).catch(() => {});
-  }
-});
 
 async function translateText(text, mode) {
   const s = await chrome.storage.local.get(DEFAULTS);

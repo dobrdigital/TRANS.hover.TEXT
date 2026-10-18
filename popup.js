@@ -9,6 +9,7 @@ const DEFAULTS = {
   hotkeyWord: 'ctrl',
   hotkeySentence: 'ctrl+shift',
   hotkeyParagraph: 'ctrl+shift+alt',
+  pageHotkey: 'alt+a',
   autoExpert: true,
   expert: 'general',
   customPrompt: '',
@@ -183,12 +184,31 @@ for (const [provider, source] of Object.entries(MODEL_SOURCES)) {
   await loadModels(stored.model);
 })();
 
+// Запись комбинации: нажмите клавиши в поле, например Alt + A. Нужен хотя бы один модификатор.
+$('pageHotkey').addEventListener('keydown', (e) => {
+  e.preventDefault();
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+
+  const parts = [];
+  if (e.ctrlKey) parts.push('ctrl');
+  if (e.altKey) parts.push('alt');
+  if (e.shiftKey) parts.push('shift');
+  parts.push(e.key.toLowerCase());
+  $('pageHotkey').value = parts.join('+');
+});
+
 $('save').addEventListener('click', async () => {
   const form = readForm();
 
   const hotkeys = [form.hotkeyWord, form.hotkeySentence, form.hotkeyParagraph];
   if (new Set(hotkeys).size !== hotkeys.length) {
     setStatus('Горячие клавиши для слова, предложения и абзаца должны отличаться.', true);
+    return;
+  }
+
+  const pageParts = form.pageHotkey.split('+');
+  if (pageParts.length < 2 || !['ctrl', 'alt', 'shift'].some((m) => pageParts.includes(m))) {
+    setStatus('Клавиша страницы должна содержать модификатор: Ctrl, Alt или Shift.', true);
     return;
   }
 
