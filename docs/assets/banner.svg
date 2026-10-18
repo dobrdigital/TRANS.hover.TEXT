@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <defs>
+    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5252"/>
+      <stop offset="1" stop-color="#b71c1c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" fill="#0b1120"/>
+  <path d="M170 40 C140 100 100 130 100 185 A70 70 0 0 0 240 185 C240 130 200 100 170 40 Z" fill="url(#drop)"/>
+  <text x="170" y="210" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="90" font-weight="700" fill="#ffffff">T</text>
+  <text x="300" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="72" font-weight="700" fill="#e2e8f0">TRANS.hover.TEXT</text>
+  <text x="300" y="200" font-family="Segoe UI, Arial, sans-serif" font-size="30" fill="#8b98b0">Перевод слова, предложения, абзаца и страницы под курсором · Chromium</text>
+</svg>

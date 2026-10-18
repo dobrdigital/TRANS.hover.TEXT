@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "TransHover",
-  "version": "0.2.0",
+  "name": "TRANS.hover.TEXT",
+  "version": "0.3.0",
   "description": "Перевод слова, предложения, абзаца или всей страницы под курсором через OpenRouter или OpenAI.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
     "https://openrouter.ai/*",
@@ -21,6 +27,10 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "TransHover"
+    "default_title": "TRANS.hover.TEXT",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
   }
 }
