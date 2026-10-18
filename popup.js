@@ -4,6 +4,7 @@ const DEFAULTS = {
   openaiKey: '',
   model: '',
   targetLang: 'Russian',
+  replaceInPlace: false,
   autoExpert: true,
   expert: 'general',
   customPrompt: '',

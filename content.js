@@ -9,7 +9,8 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', '
 
 let mouse = null;
 let pending = null;
-let pageState = null; // { originals: Map<Text, string> } пока страница переведена или переводится
+// { originals: Map<Text, string>, pageTranslated: boolean } — все правки страницы, которые можно откатить
+let pageState = null;
 
 document.addEventListener('mousemove', (e) => {
   mouse = { x: e.clientX, y: e.clientY };
@@ -57,19 +58,21 @@ function caretTextAt(x, y) {
   return { node: range.startContainer, offset: range.startOffset };
 }
 
-function wordAt(text, i) {
+// Границы слова вокруг индекса i внутри одной строки текста.
+function wordBounds(text, i) {
   let start = i;
   let end = i;
   while (start > 0 && WORD_CHAR.test(text[start - 1])) start--;
   while (end < text.length && WORD_CHAR.test(text[end])) end++;
-  return text.slice(start, end);
+  return { start, end };
 }
 
 function blockOf(node) {
   return node.parentElement?.closest(BLOCK_SELECTOR) ?? document.body;
 }
 
-function sentenceAt(full, pos) {
+// Границы предложения вокруг позиции pos в тексте блока.
+function sentenceBounds(full, pos) {
   const endRe = /[.!?…]+["'»”)\]]*/g;
   let start = 0;
   let end = full.length;
@@ -84,7 +87,7 @@ function sentenceAt(full, pos) {
       break;
     }
   }
-  return full.slice(start, end);
+  return { start, end };
 }
 
 function translateAt(point, mode) {
@@ -92,46 +95,103 @@ function translateAt(point, mode) {
   if (!hit) return;
 
   const { node, offset } = hit;
-  let text;
+  const block = blockOf(node);
+  const full = block.textContent;
+
+  // Позиция курсора в тексте блока и начало текстового узла в нём.
+  const range = document.createRange();
+  range.setStart(block, 0);
+  range.setEnd(node, offset);
+  const pos = range.toString().length;
+  const nodeStart = pos - offset;
+
+  let start;
+  let end;
 
   if (mode === 'word') {
     const idx = WORD_CHAR.test(node.data[offset] ?? '') ? offset : offset - 1;
-    text = WORD_CHAR.test(node.data[idx] ?? '') ? wordAt(node.data, idx) : '';
+    if (!WORD_CHAR.test(node.data[idx] ?? '')) return;
+    const b = wordBounds(node.data, idx);
+    start = nodeStart + b.start;
+    end = nodeStart + b.end;
+  } else if (mode === 'sentence') {
+    ({ start, end } = sentenceBounds(full, pos));
   } else {
-    const block = blockOf(node);
-    const full = block.textContent;
-
-    const range = document.createRange();
-    range.setStart(block, 0);
-    range.setEnd(node, offset);
-    const pos = range.toString().length;
-
-    text = mode === 'sentence' ? sentenceAt(full, pos) : full;
-    text = text.replace(/\s+/g, ' ').trim();
+    start = 0;
+    end = full.length;
   }
 
+  const text = full.slice(start, end).replace(/\s+/g, ' ').trim();
   if (!text) return;
   if (text.length > MAX_LENGTH) {
     showTooltip(point, `Текст слишком длинный (больше ${MAX_LENGTH} символов).`, true);
     return;
   }
-  requestTranslation(point, text, mode);
+
+  requestTranslation(point, block, start, end, text, mode);
 }
 
-async function requestTranslation(point, text, mode) {
+async function requestTranslation(point, block, start, end, text, mode) {
   showTooltip(point, 'Перевожу…');
+
   try {
     const res = await sendToBackground({ type: 'translate', text, mode });
-    showTooltip(point, res.text, false);
+    const { replaceInPlace } = await chrome.storage.local.get({ replaceInPlace: false });
+
+    if (replaceInPlace) {
+      replaceTextRange(block, start, end, res.text);
+      hideTooltip();
+    } else {
+      showTooltip(point, res.text, false);
+    }
   } catch (err) {
     showTooltip(point, err.message, true);
   }
 }
 
+// Заменяет текст в диапазоне [start, end) блока на newText.
+// Элементы (ссылки, выделения) сохраняются: их текстовые узлы
+// очищаются, а новый текст вставляется в первый затронутый узел.
+function replaceTextRange(block, start, end, newText) {
+  const state = ensureState();
+
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  let cursor = 0;
+  let placed = false;
+  for (const node of nodes) {
+    const nodeFrom = cursor;
+    const nodeTo = cursor + node.data.length;
+    cursor = nodeTo;
+
+    const from = Math.max(start, nodeFrom);
+    const to = Math.min(end, nodeTo);
+    if (from >= to) continue;
+
+    if (!state.originals.has(node)) state.originals.set(node, node.data);
+
+    const before = node.data.slice(0, from - nodeFrom);
+    const after = node.data.slice(to - nodeFrom);
+    if (!placed) {
+      node.data = before + newText + after;
+      placed = true;
+    } else {
+      node.data = before + after;
+    }
+  }
+}
+
 /* ---------- перевод всей страницы ---------- */
 
+function ensureState() {
+  if (!pageState) pageState = { originals: new Map(), pageTranslated: false };
+  return pageState;
+}
+
 function togglePage() {
-  if (pageState) {
+  if (pageState?.pageTranslated) {
     revertPage();
   } else {
     translatePage();
@@ -183,8 +243,8 @@ async function translatePage() {
     return;
   }
 
-  const state = { originals: new Map() };
-  pageState = state;
+  const state = ensureState();
+  state.pageTranslated = true;
 
   const chunks = chunkNodes(nodes);
   let done = 0;
@@ -275,6 +335,7 @@ function sendToBackground(message) {
 
 /* ---------- интерфейс ---------- */
 
+// Подсказка появляется над словом; если у верхнего края экрана места нет — под ним.
 function showTooltip(point, text, isError = false) {
   let el = document.getElementById(TOOLTIP_ID);
   if (!el) {
@@ -283,10 +344,12 @@ function showTooltip(point, text, isError = false) {
     document.documentElement.append(el);
   }
 
+  const above = point.y > 60;
   el.textContent = text;
   el.dataset.error = String(isError);
   el.style.left = `${Math.max(8, Math.min(point.x + 12, window.innerWidth - 340))}px`;
-  el.style.top = `${point.y + 18}px`;
+  el.style.top = above ? `${point.y - 12}px` : `${point.y + 20}px`;
+  el.style.transform = above ? 'translateY(-100%)' : 'none';
   el.hidden = false;
 }
 
