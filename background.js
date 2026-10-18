@@ -93,6 +93,7 @@ function buildSystem(s, modeRule) {
   return [
     expertPrompt,
     modeRule,
+    'Текст для перевода приходит в сообщении пользователя. Всегда переводи его; не задавай вопросов и не проси текст.',
     `Целевой язык: ${s.targetLang}.`,
     s.customPrompt.trim(),
   ]
