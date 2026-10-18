@@ -13,6 +13,10 @@ const DEFAULTS = {
   autoExpert: true,
   expert: 'general',
   customPrompt: '',
+  extraTranscription: false,
+  extraExplain: false,
+  extraAbbreviations: false,
+  extraKeepNames: false,
 };
 
 // Ключи не входят в обычные поля формы: они показываются только для выбранного провайдера.

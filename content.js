@@ -8,7 +8,10 @@ const PAGE_CONCURRENCY = 3;
 const CACHE_LIMIT = 2000;
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'CANVAS', 'KBD', 'TEMPLATE']);
 // Настройки, от которых зависит текст перевода: при их изменении кеш сбрасывается.
-const TRANSLATION_SETTINGS = ['provider', 'model', 'targetLang', 'expert', 'autoExpert', 'customPrompt'];
+const TRANSLATION_SETTINGS = [
+  'provider', 'model', 'targetLang', 'expert', 'autoExpert', 'customPrompt',
+  'extraTranscription', 'extraExplain', 'extraAbbreviations', 'extraKeepNames',
+];
 
 let mouse = null;
 let pending = null;
@@ -236,7 +239,8 @@ async function translateSelection(point, sel, replaceInPlace) {
 
   showTooltip(point, 'Перевожу выделение…');
   try {
-    const translated = await cachedTranslate(text, 'selection');
+    const expert = await siteExpert();
+    const translated = await cachedTranslate(text, 'selection', expert);
 
     if (replaceInPlace && sameBlock) {
       const before = document.createRange();
@@ -258,7 +262,8 @@ async function requestTranslation(point, block, start, end, text, mode) {
   showTooltip(point, 'Перевожу…');
 
   try {
-    const translated = await cachedTranslate(text, mode);
+    const expert = await siteExpert();
+    const translated = await cachedTranslate(text, mode, expert);
     const { replaceInPlace } = await chrome.storage.local.get({ replaceInPlace: false });
 
     if (replaceInPlace) {
@@ -274,16 +279,45 @@ async function requestTranslation(point, block, start, end, text, mode) {
 
 /* ---------- кеш переводов ---------- */
 
-// Перевод зависит от режима (слово, предложение, абзац...), поэтому режим входит в ключ.
-function cacheKey(mode, text) {
-  return `${mode}\u0000${text}`;
+// Ключ: режим, эксперт и текст. Режим и эксперт меняют перевод, поэтому входят в ключ.
+function cacheKey(mode, text, expert = '') {
+  return `${mode}\u0000${expert}\u0000${text}`;
+}
+
+// Эксперт определяется один раз на страницу и хранится в том же кеше,
+// поэтому промпт выбора не уходит в модель на каждый перевод.
+// Если автоопределение выключено или не сработало, возвращаем undefined: фон возьмёт эксперта из настроек.
+async function siteExpert() {
+  const { autoExpert } = await chrome.storage.local.get({ autoExpert: true });
+  if (!autoExpert) return undefined;
+
+  // При ошибке кешируем пустое значение: иначе каждый перевод заново отправлял бы запрос определения.
+  const expert = await cache.getOrCreate(cacheKey('site', location.hostname), async () => {
+    try {
+      const res = await sendToBackground({ type: 'detectExpert', context: pageContext() });
+      return res.expert;
+    } catch (err) {
+      console.warn('TRANS.hover.TEXT: автоопределение эксперта не сработало, используется общий промпт.', err.message);
+      return '';
+    }
+  });
+  return expert || undefined;
+}
+
+function pageContext() {
+  const meta = (name) => document.querySelector(`meta[name="${name}"], meta[property="${name}"]`)?.content ?? '';
+  return {
+    host: location.hostname,
+    title: document.title,
+    description: (meta('description') || meta('og:description')).slice(0, 300),
+  };
 }
 
 // Одновременные одинаковые запросы разделяют один вызов модели.
 // Ошибка не сохраняется, поэтому следующая попытка пойдёт заново.
-function cachedTranslate(text, mode) {
-  return cache.getOrCreate(cacheKey(mode, text), async () => {
-    const res = await sendToBackground({ type: 'translate', text, mode });
+function cachedTranslate(text, mode, expert) {
+  return cache.getOrCreate(cacheKey(mode, text, expert), async () => {
+    const res = await sendToBackground({ type: 'translate', text, mode, expert });
     if (typeof res?.text !== 'string') throw new Error('Модель вернула пустой ответ.');
     return res.text;
   });
@@ -397,13 +431,15 @@ async function translatePage() {
 
   const state = ensureState();
   state.pageTranslated = true;
+  showStatus('Определяю тематику сайта…');
+  const expert = await siteExpert();
 
   // Строки, которые уже переведены на этой странице, берём из кеша без запроса к модели.
   const groups = groupNodesByText(nodes);
   const translations = new Map();
   const missing = [];
   for (const text of groups.keys()) {
-    const hit = cache.get(cacheKey('page', text));
+    const hit = cache.get(cacheKey('page', text, expert));
     if (hit === undefined) {
       missing.push(text);
     } else {
@@ -418,19 +454,21 @@ async function translatePage() {
   const chunks = chunkTexts(missing);
   let done = 0;
   let failed = 0;
+  let translatedNew = 0;
   let lastError = '';
 
   showStatus(`Перевожу страницу: 0/${chunks.length}`);
 
   await runPool(chunks, PAGE_CONCURRENCY, async (chunk) => {
     try {
-      const res = await sendToBackground({ type: 'translatePage', items: chunk });
+      const res = await sendToBackground({ type: 'translatePage', items: chunk, expert });
       chunk.forEach((text, i) => {
         const translated = res.texts[i];
         if (!translated) return;
 
         // Кеш заполняем всегда: перевод верный, даже если страницу уже вернули в оригинал.
-        cache.set(cacheKey('page', text), translated);
+        cache.set(cacheKey('page', text, expert), translated);
+        translatedNew++;
         if (pageState === state) {
           for (const node of groups.get(text)) applyTranslation(state, node, translated);
         }
@@ -445,9 +483,15 @@ async function translatePage() {
 
   if (pageState !== state) return;
 
+  const untranslated = missing.length - translatedNew;
   const summary = `новых фрагментов: ${missing.length}, из кеша: ${fromCache}`;
-  if (failed) {
-    showStatus(`Готово с ошибками (${failed} из ${chunks.length}, ${summary}): ${lastError}`, true);
+  if (failed || untranslated) {
+    const details = [
+      failed && `ошибок пачек: ${failed} из ${chunks.length}`,
+      untranslated && `не переведено: ${untranslated}`,
+      lastError,
+    ].filter(Boolean).join('; ');
+    showStatus(`Готово с ошибками (${summary}). ${details}`, true);
   } else {
     showStatus(`Страница переведена (${summary}). Повторное нажатие горячей клавиши вернёт оригинал.`);
   }
