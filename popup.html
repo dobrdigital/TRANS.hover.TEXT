@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>TransHover</title>
   <style>
-    body { width: 340px; margin: 0; padding: 12px; font: 13px/1.4 system-ui, sans-serif; }
+    body { width: 360px; margin: 0; padding: 12px; font: 13px/1.4 system-ui, sans-serif; }
     h1 { font-size: 16px; margin: 0 0 10px; }
     h2 { font-size: 13px; margin: 14px 0 6px; color: #374151; }
     label { display: block; margin-bottom: 8px; }
@@ -13,7 +13,10 @@
       width: 100%; box-sizing: border-box; margin-top: 3px; padding: 5px; font: inherit;
     }
     textarea { resize: vertical; }
-    button { padding: 6px 12px; font: inherit; cursor: pointer; }
+    button { padding: 5px 10px; font: inherit; cursor: pointer; }
+    button.active { background: #1f2937; color: #f9fafb; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .seg { display: flex; gap: 6px; margin-top: 4px; align-items: center; }
     .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
     #status { color: #15803d; }
     #status[data-error="true"] { color: #b91c1c; }
@@ -38,12 +41,19 @@
     <input id="openaiKey" type="password" autocomplete="off">
   </label>
 
-  <label>Модель
-    <input id="model" type="text">
+  <div>
+    <div class="seg">
+      <button id="fltFree" type="button">Бесплатные</button>
+      <button id="fltPaid" type="button">Платные</button>
+      <button id="reloadModels" type="button">Обновить</button>
+    </div>
+    <label style="margin-top: 8px;">Модель
+      <select id="model"></select>
+    </label>
     <small id="modelHint"></small>
-  </label>
+  </div>
 
-  <label>Язык перевода
+  <label style="margin-top: 8px;">Язык перевода
     <input id="targetLang" type="text" placeholder="Russian">
   </label>
 
@@ -71,8 +81,8 @@
   </label>
 
   <div class="row">
-    <button id="save">Сохранить</button>
-    <button id="translatePage">Перевести страницу</button>
+    <button id="save" type="button">Сохранить</button>
+    <button id="translatePage" type="button">Перевести страницу</button>
   </div>
   <div class="row"><span id="status"></span></div>
 
