@@ -26,14 +26,8 @@ const DEFAULTS = {
   customPrompt: '',
 };
 
-const EXPERTS = {
-  general: 'Ты переводчик общего назначения. Сохраняй смысл и естественность текста.',
-  literary: 'Ты литературный переводчик. Сохраняй стиль, ритм, образность и интонацию автора; идиомы передавай по смыслу.',
-  economic: 'Ты переводчик экономических и финансовых текстов. Используй точную терминологию (рынки, отчётность, макроэкономика) и не упрощай термины.',
-  medical: 'Ты переводчик медицинских текстов. Используй точную медицинскую терминологию, сохраняй дозировки, единицы измерения и названия препаратов.',
-  technical: 'Ты переводчик технической документации. Сохраняй точность; названия API, команд, кода и единицы измерения оставляй без изменений.',
-  auto: 'Сначала определи предметную область текста (литература, экономика, медицина, техника или общий текст) и выбери подходящий стиль и терминологию.',
-};
+// EXPERTS, EXPERT_ORDER и AUTO_EXPERT_PROMPT — из experts.js
+importScripts('experts.js');
 
 const MODES = {
   word: 'Переведи слово, учитывая контекст. Отвечай только переводом, без пояснений и кавычек.',
@@ -95,9 +89,9 @@ async function translatePage(items) {
 }
 
 function buildSystem(s, modeRule) {
-  const expert = s.autoExpert ? 'auto' : s.expert;
+  const expertPrompt = s.autoExpert ? AUTO_EXPERT_PROMPT : (EXPERTS[s.expert] ?? EXPERTS.general).prompt;
   return [
-    EXPERTS[expert] ?? EXPERTS.general,
+    expertPrompt,
     modeRule,
     `Целевой язык: ${s.targetLang}.`,
     s.customPrompt.trim(),

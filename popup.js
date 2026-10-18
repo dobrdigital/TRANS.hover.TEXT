@@ -39,6 +39,11 @@ const MODEL_SOURCES = {
 const $ = (id) => document.getElementById(id);
 const FIELDS = Object.keys(DEFAULTS);
 
+// Список экспертов строится из experts.js, чтобы не дублировать его в двух местах.
+for (const id of EXPERT_ORDER) {
+  $('expert').append(new Option(EXPERTS[id].label, id));
+}
+
 let models = [];
 let filter = 'free'; // 'free' | 'paid'
 
