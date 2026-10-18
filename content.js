@@ -5,12 +5,17 @@ const WORD_CHAR = /[\p{L}\p{M}\p{N}'’-]/u;
 const MAX_LENGTH = 4000;
 const PAGE_CHUNK_CHARS = 3000;
 const PAGE_CONCURRENCY = 3;
+const CACHE_LIMIT = 2000;
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'CANVAS', 'KBD', 'TEMPLATE']);
+// Настройки, от которых зависит текст перевода: при их изменении кеш сбрасывается.
+const TRANSLATION_SETTINGS = ['provider', 'model', 'targetLang', 'expert', 'autoExpert', 'customPrompt'];
 
 let mouse = null;
 let pending = null;
 // { originals: Map<Text, string>, pageTranslated: boolean } — все правки страницы, которые можно откатить
 let pageState = null;
+// Переводы этой страницы. Живёт в content script, поэтому пропадает вместе со страницей.
+const cache = new TranslationCache(CACHE_LIMIT);
 
 document.addEventListener('mousemove', (e) => {
   mouse = { x: e.clientX, y: e.clientY };
@@ -86,6 +91,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.hotkeyWord || changes.hotkeySentence || changes.hotkeyParagraph) loadHotkeys();
   if (changes.pageHotkey) loadPageHotkey();
+  if (TRANSLATION_SETTINGS.some((key) => key in changes)) cache.clear();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -230,18 +236,18 @@ async function translateSelection(point, sel, replaceInPlace) {
 
   showTooltip(point, 'Перевожу выделение…');
   try {
-    const res = await sendToBackground({ type: 'translate', text, mode: 'selection' });
+    const translated = await cachedTranslate(text, 'selection');
 
     if (replaceInPlace && sameBlock) {
       const before = document.createRange();
       before.setStart(startBlock, 0);
       before.setEnd(range.startContainer, range.startOffset);
       const start = before.toString().length;
-      replaceTextRange(startBlock, start, start + range.toString().length, res.text);
+      replaceTextRange(startBlock, start, start + range.toString().length, translated);
       hideTooltip();
     } else {
       const note = replaceInPlace ? '\n\n(замена работает только внутри одного блока)' : '';
-      showTooltip(point, res.text + note, false);
+      showTooltip(point, translated + note, false);
     }
   } catch (err) {
     showTooltip(point, err.message, true);
@@ -252,18 +258,35 @@ async function requestTranslation(point, block, start, end, text, mode) {
   showTooltip(point, 'Перевожу…');
 
   try {
-    const res = await sendToBackground({ type: 'translate', text, mode });
+    const translated = await cachedTranslate(text, mode);
     const { replaceInPlace } = await chrome.storage.local.get({ replaceInPlace: false });
 
     if (replaceInPlace) {
-      replaceTextRange(block, start, end, res.text);
+      replaceTextRange(block, start, end, translated);
       hideTooltip();
     } else {
-      showTooltip(point, res.text, false);
+      showTooltip(point, translated, false);
     }
   } catch (err) {
     showTooltip(point, err.message, true);
   }
+}
+
+/* ---------- кеш переводов ---------- */
+
+// Перевод зависит от режима (слово, предложение, абзац...), поэтому режим входит в ключ.
+function cacheKey(mode, text) {
+  return `${mode}\u0000${text}`;
+}
+
+// Одновременные одинаковые запросы разделяют один вызов модели.
+// Ошибка не сохраняется, поэтому следующая попытка пойдёт заново.
+function cachedTranslate(text, mode) {
+  return cache.getOrCreate(cacheKey(mode, text), async () => {
+    const res = await sendToBackground({ type: 'translate', text, mode });
+    if (typeof res?.text !== 'string') throw new Error('Модель вернула пустой ответ.');
+    return res.text;
+  });
 }
 
 // Заменяет текст в диапазоне [start, end) блока на newText.
@@ -334,20 +357,32 @@ function collectTextNodes() {
   return nodes;
 }
 
-function chunkNodes(nodes) {
+// Одинаковые строки (меню, кнопки, повторы) собираются в одну группу:
+// переводим строку один раз, а результат применяем ко всем её узлам.
+function groupNodesByText(nodes) {
+  const groups = new Map();
+  for (const node of nodes) {
+    const text = node.data.trim();
+    if (!groups.has(text)) groups.set(text, []);
+    groups.get(text).push(node);
+  }
+  return groups;
+}
+
+// Делит строки на пачки примерно по PAGE_CHUNK_CHARS символов — по одной пачке на запрос.
+function chunkTexts(texts) {
   const chunks = [];
   let current = [];
   let length = 0;
 
-  for (const node of nodes) {
-    const size = node.data.trim().length;
-    if (current.length && length + size > PAGE_CHUNK_CHARS) {
+  for (const text of texts) {
+    if (current.length && length + text.length > PAGE_CHUNK_CHARS) {
       chunks.push(current);
       current = [];
       length = 0;
     }
-    current.push(node);
-    length += size;
+    current.push(text);
+    length += text.length;
   }
   if (current.length) chunks.push(current);
   return chunks;
@@ -363,7 +398,24 @@ async function translatePage() {
   const state = ensureState();
   state.pageTranslated = true;
 
-  const chunks = chunkNodes(nodes);
+  // Строки, которые уже переведены на этой странице, берём из кеша без запроса к модели.
+  const groups = groupNodesByText(nodes);
+  const translations = new Map();
+  const missing = [];
+  for (const text of groups.keys()) {
+    const hit = cache.get(cacheKey('page', text));
+    if (hit === undefined) {
+      missing.push(text);
+    } else {
+      translations.set(text, hit);
+    }
+  }
+  const fromCache = translations.size;
+  for (const [text, translated] of translations) {
+    for (const node of groups.get(text)) applyTranslation(state, node, translated);
+  }
+
+  const chunks = chunkTexts(missing);
   let done = 0;
   let failed = 0;
   let lastError = '';
@@ -372,13 +424,17 @@ async function translatePage() {
 
   await runPool(chunks, PAGE_CONCURRENCY, async (chunk) => {
     try {
-      const res = await sendToBackground({
-        type: 'translatePage',
-        items: chunk.map((n) => n.data.trim()),
-      });
-      if (pageState !== state) return; // пользователь вернул оригинал во время перевода
+      const res = await sendToBackground({ type: 'translatePage', items: chunk });
+      chunk.forEach((text, i) => {
+        const translated = res.texts[i];
+        if (!translated) return;
 
-      chunk.forEach((node, i) => applyTranslation(state, node, res.texts[i]));
+        // Кеш заполняем всегда: перевод верный, даже если страницу уже вернули в оригинал.
+        cache.set(cacheKey('page', text), translated);
+        if (pageState === state) {
+          for (const node of groups.get(text)) applyTranslation(state, node, translated);
+        }
+      });
     } catch (err) {
       failed++;
       lastError = err.message;
@@ -389,10 +445,11 @@ async function translatePage() {
 
   if (pageState !== state) return;
 
+  const summary = `новых фрагментов: ${missing.length}, из кеша: ${fromCache}`;
   if (failed) {
-    showStatus(`Готово с ошибками (${failed} из ${chunks.length}): ${lastError}`, true);
+    showStatus(`Готово с ошибками (${failed} из ${chunks.length}, ${summary}): ${lastError}`, true);
   } else {
-    showStatus('Страница переведена. Alt+Shift+T — вернуть оригинал.');
+    showStatus(`Страница переведена (${summary}). Повторное нажатие горячей клавиши вернёт оригинал.`);
   }
 }
 

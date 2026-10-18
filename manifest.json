@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TRANS.hover.TEXT",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Перевод слова, предложения, абзаца или всей страницы под курсором через OpenRouter или OpenAI.",
   "icons": {
     "16": "icons/icon16.png",
@@ -20,7 +20,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["cache.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }
