@@ -6,6 +6,9 @@ const DEFAULTS = {
   targetLang: 'Russian',
   replaceInPlace: false,
   useSelection: false,
+  hotkeyWord: 'ctrl',
+  hotkeySentence: 'ctrl+shift',
+  hotkeyParagraph: 'ctrl+shift+alt',
   autoExpert: true,
   expert: 'general',
   customPrompt: '',
@@ -42,6 +45,23 @@ const FIELDS = Object.keys(DEFAULTS);
 // Список экспертов строится из experts.js, чтобы не дублировать его в двух местах.
 for (const id of EXPERT_ORDER) {
   $('expert').append(new Option(EXPERTS[id].label, id));
+}
+
+// Варианты клавиш: значение совпадает с тем, что читает content.js (split по '+').
+const HOTKEY_OPTIONS = [
+  ['ctrl', 'Control'],
+  ['alt', 'Alt'],
+  ['shift', 'Shift'],
+  ['ctrl+shift', 'Control + Shift'],
+  ['ctrl+alt', 'Control + Alt'],
+  ['alt+shift', 'Alt + Shift'],
+  ['ctrl+shift+alt', 'Control + Shift + Alt'],
+];
+
+for (const id of ['hotkeyWord', 'hotkeySentence', 'hotkeyParagraph']) {
+  for (const [value, label] of HOTKEY_OPTIONS) {
+    $(id).append(new Option(label, value));
+  }
 }
 
 let models = [];
@@ -164,7 +184,15 @@ for (const [provider, source] of Object.entries(MODEL_SOURCES)) {
 })();
 
 $('save').addEventListener('click', async () => {
-  await chrome.storage.local.set(readForm());
+  const form = readForm();
+
+  const hotkeys = [form.hotkeyWord, form.hotkeySentence, form.hotkeyParagraph];
+  if (new Set(hotkeys).size !== hotkeys.length) {
+    setStatus('Горячие клавиши для слова, предложения и абзаца должны отличаться.', true);
+    return;
+  }
+
+  await chrome.storage.local.set(form);
   setStatus('Сохранено');
 });
 

@@ -39,11 +39,46 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === 'togglePage') togglePage();
 });
 
+// Комбинации клавиш из настроек попапа: 'ctrl', 'ctrl+shift', 'ctrl+shift+alt' и т.д.
+const HOTKEY_DEFAULTS = {
+  hotkeyWord: 'ctrl',
+  hotkeySentence: 'ctrl+shift',
+  hotkeyParagraph: 'ctrl+shift+alt',
+};
+let hotkeys = {
+  word: ['ctrl'],
+  sentence: ['ctrl', 'shift'],
+  paragraph: ['ctrl', 'shift', 'alt'],
+};
+
+async function loadHotkeys() {
+  const s = await chrome.storage.local.get(HOTKEY_DEFAULTS);
+  hotkeys = {
+    word: s.hotkeyWord.split('+'),
+    sentence: s.hotkeySentence.split('+'),
+    paragraph: s.hotkeyParagraph.split('+'),
+  };
+}
+
+loadHotkeys();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (changes.hotkeyWord || changes.hotkeySentence || changes.hotkeyParagraph)) {
+    loadHotkeys();
+  }
+});
+
+// Режим — тот, чья комбинация совпадает с нажатыми модификаторами целиком.
 function modeFromKeys(e) {
-  if (!e.ctrlKey) return null;
-  if (e.shiftKey && e.altKey) return 'paragraph';
-  if (e.shiftKey) return 'sentence';
-  return 'word';
+  const pressed = [];
+  if (e.ctrlKey) pressed.push('ctrl');
+  if (e.shiftKey) pressed.push('shift');
+  if (e.altKey) pressed.push('alt');
+
+  for (const mode of ['word', 'sentence', 'paragraph']) {
+    const combo = hotkeys[mode];
+    if (combo.length === pressed.length && combo.every((k) => pressed.includes(k))) return mode;
+  }
+  return null;
 }
 
 /* ---------- перевод под курсором ---------- */

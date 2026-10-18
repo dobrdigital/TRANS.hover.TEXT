@@ -4,84 +4,230 @@
   <meta charset="utf-8">
   <title>TransHover</title>
   <style>
-    body { width: 360px; margin: 0; padding: 12px; font: 13px/1.4 system-ui, sans-serif; }
-    h1 { font-size: 16px; margin: 0 0 10px; }
-    h2 { font-size: 13px; margin: 14px 0 6px; color: #374151; }
-    label { display: block; margin-bottom: 8px; }
-    label.check { display: flex; gap: 6px; align-items: center; }
-    input[type="text"], input[type="password"], select, textarea {
-      width: 100%; box-sizing: border-box; margin-top: 3px; padding: 5px; font: inherit;
+    :root {
+      --bg: #0b1120;
+      --card: #111a2e;
+      --line: #1f2b45;
+      --field: #0b1120;
+      --text: #e2e8f0;
+      --muted: #8b98b0;
+      --accent: #6366f1;
+      --accent-hover: #7477f5;
+      --ok: #34d399;
+      --err: #f87171;
     }
-    textarea { resize: vertical; }
-    button { padding: 5px 10px; font: inherit; cursor: pointer; }
-    button.active { background: #1f2937; color: #f9fafb; }
-    button:disabled { opacity: 0.5; cursor: default; }
-    .seg { display: flex; gap: 6px; margin-top: 4px; align-items: center; }
-    .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
-    #status { color: #15803d; }
-    #status[data-error="true"] { color: #b91c1c; }
-    small { color: #6b7280; }
+
+    * { box-sizing: border-box; }
+
+    body {
+      width: 380px;
+      margin: 0;
+      padding: 14px;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+    header h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+    header span { color: var(--muted); font-size: 12px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+
+    label { display: block; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+    label:last-child { margin-bottom: 0; }
+
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%;
+      margin-top: 5px;
+      padding: 8px 10px;
+      background: var(--field);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    select option { background: var(--field); color: var(--text); }
+    textarea { resize: vertical; min-height: 64px; }
+
+    small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+
+    /* Переключатели */
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 10px;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .toggle:last-child { margin-bottom: 0; }
+    .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex: none;
+      background: #26334f;
+      border-radius: 999px;
+      transition: background .15s;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      background: #cbd5e1;
+      border-radius: 50%;
+      transition: transform .15s;
+    }
+    .toggle input:checked + .switch { background: var(--accent); }
+    .toggle input:checked + .switch::after { transform: translateX(16px); background: #fff; }
+    .toggle input:focus-visible + .switch { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+
+    /* Кнопки-сегменты */
+    .seg { display: flex; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
+    .seg button {
+      flex: 1;
+      background: transparent;
+      color: var(--muted);
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .seg button.active { background: var(--accent); color: #fff; }
+    .seg button:disabled { opacity: .4; cursor: default; }
+
+    button.primary, button.ghost {
+      border-radius: 8px;
+      padding: 9px 12px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    button.primary { background: var(--accent); color: #fff; }
+    button.primary:hover { background: var(--accent-hover); }
+    button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+    button.ghost:hover { border-color: var(--accent); }
+    button.small { padding: 6px 10px; font-size: 12px; font-weight: 500; }
+
+    footer { margin-top: 12px; }
+    footer .row { gap: 8px; }
+    #status { margin-top: 10px; min-height: 18px; color: var(--ok); font-size: 12px; }
+    #status[data-error="true"] { color: var(--err); }
   </style>
 </head>
 <body>
-  <h1>TransHover</h1>
+  <header>
+    <h1>TransHover</h1>
+    <span>перевод при наведении</span>
+  </header>
 
-  <label>Провайдер
-    <select id="provider">
-      <option value="openrouter">OpenRouter</option>
-      <option value="openai">OpenAI</option>
-    </select>
-  </label>
+  <section class="card">
+    <h2>Провайдер и ключи</h2>
+    <label>Провайдер
+      <select id="provider">
+        <option value="openrouter">OpenRouter</option>
+        <option value="openai">OpenAI</option>
+      </select>
+    </label>
+    <label>Ключ OpenRouter
+      <input id="openrouterKey" type="password" autocomplete="off" placeholder="sk-or-…">
+    </label>
+    <label>Ключ OpenAI
+      <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…">
+    </label>
+  </section>
 
-  <label>Ключ OpenRouter
-    <input id="openrouterKey" type="password" autocomplete="off">
-  </label>
-
-  <label>Ключ OpenAI
-    <input id="openaiKey" type="password" autocomplete="off">
-  </label>
-
-  <div>
+  <section class="card">
+    <h2>Модель</h2>
     <div class="seg">
       <button id="fltFree" type="button">Бесплатные</button>
       <button id="fltPaid" type="button">Платные</button>
       <button id="reloadModels" type="button">Обновить</button>
     </div>
-    <label style="margin-top: 8px;">Модель
+    <label style="margin-top: 10px;">
       <select id="model"></select>
+      <small id="modelHint"></small>
     </label>
-    <small id="modelHint"></small>
-  </div>
+  </section>
 
-  <label style="margin-top: 8px;">Язык перевода
-    <input id="targetLang" type="text" placeholder="Russian">
-  </label>
+  <section class="card">
+    <h2>Горячие клавиши</h2>
+    <label>Слово
+      <select id="hotkeyWord"></select>
+    </label>
+    <label>Предложение
+      <select id="hotkeySentence"></select>
+    </label>
+    <label>Абзац
+      <select id="hotkeyParagraph"></select>
+    </label>
+    <small>Комбинации должны быть разными. Выделенный мышкой текст переводится той же клавишей, что и слово.</small>
+  </section>
 
-  <h2>Отображение</h2>
-  <label class="check">
-    <input id="replaceInPlace" type="checkbox"> Заменять текст на странице (выкл. — подсказка над словом)
-  </label>
-  <label class="check">
-    <input id="useSelection" type="checkbox"> Переводить выделенный мышкой текст при наведении с клавишей
-  </label>
+  <section class="card">
+    <h2>Отображение</h2>
+    <label class="toggle">
+      <span>Заменять текст на странице<br><small>выкл. — подсказка над словом</small></span>
+      <input id="replaceInPlace" type="checkbox"><span class="switch"></span>
+    </label>
+    <label class="toggle">
+      <span>Переводить выделенный мышкой текст<br><small>при наведении на выделение</small></span>
+      <input id="useSelection" type="checkbox"><span class="switch"></span>
+    </label>
+  </section>
 
-  <h2>Эксперт</h2>
-  <label class="check">
-    <input id="autoExpert" type="checkbox"> Автоопределение эксперта
-  </label>
-  <label>Эксперт (при ручном выборе)
-    <select id="expert"></select>
-  </label>
+  <section class="card">
+    <h2>Эксперт и промпт</h2>
+    <label class="toggle">
+      <span>Автоопределение эксперта</span>
+      <input id="autoExpert" type="checkbox"><span class="switch"></span>
+    </label>
+    <label>Эксперт (при ручном выборе)
+      <select id="expert"></select>
+    </label>
+    <label>Дополнительный промпт
+      <textarea id="customPrompt" rows="3" placeholder="Например: сохраняй английские термины в скобках"></textarea>
+    </label>
+    <label>Язык перевода
+      <input id="targetLang" type="text" placeholder="Russian">
+    </label>
+  </section>
 
-  <label>Дополнительный промпт
-    <textarea id="customPrompt" rows="4" placeholder="Например: сохраняй английские термины в скобках"></textarea>
-  </label>
-
-  <div class="row">
-    <button id="save" type="button">Сохранить</button>
-    <button id="translatePage" type="button">Перевести страницу</button>
-  </div>
-  <div class="row"><span id="status"></span></div>
+  <footer>
+    <div class="row">
+      <button id="save" class="primary" type="button">Сохранить</button>
+      <button id="translatePage" class="ghost" type="button">Перевести страницу</button>
+    </div>
+    <div id="status"></div>
+  </footer>
 
   <script src="experts.js"></script>
   <script src="popup.js"></script>
