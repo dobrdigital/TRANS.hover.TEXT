@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Исходник иконки TRANS.hover.TEXT. Меняйте цвета, форму и букву здесь, затем экспортируйте PNG 16, 32, 48, 128 px в папку icons/. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5252"/>
+      <stop offset="1" stop-color="#b71c1c"/>
+    </linearGradient>
+  </defs>
+  <!-- Капля: острие сверху, круглое дно -->
+  <path d="M64 6.4 C48.8 45.6 20.5 61 20.5 79.4 C20.5 103.3 40.1 122.9 64 122.9 C87.9 122.9 107.5 103.3 107.5 79.4 C107.5 61 78.2 45.6 64 6.4 Z" fill="url(#drop)"/>
+  <!-- Буква по центру капли -->
+  <text x="64" y="79.4" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI, Arial, sans-serif" font-size="51.2" font-weight="700" fill="#ffffff">T</text>
+</svg>
