@@ -5,6 +5,7 @@ const DEFAULTS = {
   model: '',
   targetLang: 'Russian',
   replaceInPlace: false,
+  useSelection: false,
   autoExpert: true,
   expert: 'general',
   customPrompt: '',

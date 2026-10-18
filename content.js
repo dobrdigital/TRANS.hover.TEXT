@@ -90,9 +90,17 @@ function sentenceBounds(full, pos) {
   return { start, end };
 }
 
-function translateAt(point, mode) {
+async function translateAt(point, mode) {
   const hit = caretTextAt(point.x, point.y);
   if (!hit) return;
+
+  // Если наведение идёт по выделенному мышкой фрагменту, переводим весь фрагмент.
+  const settings = await chrome.storage.local.get({ useSelection: false, replaceInPlace: false });
+  const sel = window.getSelection();
+  if (settings.useSelection && sel && !sel.isCollapsed && sel.containsNode(hit.node, true)) {
+    translateSelection(point, sel, settings.replaceInPlace);
+    return;
+  }
 
   const { node, offset } = hit;
   const block = blockOf(node);
@@ -129,6 +137,43 @@ function translateAt(point, mode) {
   }
 
   requestTranslation(point, block, start, end, text, mode);
+}
+
+function closestBlock(node) {
+  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  return el.closest(BLOCK_SELECTOR) ?? document.body;
+}
+
+async function translateSelection(point, sel, replaceInPlace) {
+  const range = sel.getRangeAt(0);
+  const text = range.toString().replace(/\s+/g, ' ').trim();
+  if (!text) return;
+  if (text.length > MAX_LENGTH) {
+    showTooltip(point, `Выделенный текст слишком длинный (больше ${MAX_LENGTH} символов).`, true);
+    return;
+  }
+
+  const startBlock = closestBlock(range.startContainer);
+  const sameBlock = startBlock === closestBlock(range.endContainer);
+
+  showTooltip(point, 'Перевожу выделение…');
+  try {
+    const res = await sendToBackground({ type: 'translate', text, mode: 'selection' });
+
+    if (replaceInPlace && sameBlock) {
+      const before = document.createRange();
+      before.setStart(startBlock, 0);
+      before.setEnd(range.startContainer, range.startOffset);
+      const start = before.toString().length;
+      replaceTextRange(startBlock, start, start + range.toString().length, res.text);
+      hideTooltip();
+    } else {
+      const note = replaceInPlace ? '\n\n(замена работает только внутри одного блока)' : '';
+      showTooltip(point, res.text + note, false);
+    }
+  } catch (err) {
+    showTooltip(point, err.message, true);
+  }
 }
 
 async function requestTranslation(point, block, start, end, text, mode) {
