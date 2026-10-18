@@ -15,16 +15,24 @@ const DEFAULTS = {
   customPrompt: '',
 };
 
+// Ключи не входят в обычные поля формы: они показываются только для выбранного провайдера.
+const KEY_FIELDS = ['openrouterKey', 'openaiKey'];
+const FIELDS = Object.keys(DEFAULTS).filter((k) => !KEY_FIELDS.includes(k));
+
 const DEFAULT_MODELS = {
   openrouter: 'openai/gpt-4o-mini',
   openai: 'gpt-4o-mini',
+};
+
+const PROVIDER_LABELS = {
+  openrouter: 'Ключ OpenRouter',
+  openai: 'Ключ OpenAI',
 };
 
 // Источники списка моделей. У OpenRouter есть цены, у OpenAI — нет.
 const MODEL_SOURCES = {
   openrouter: {
     url: 'https://openrouter.ai/api/v1/models',
-    keyField: 'openrouterKey',
     parse: (data) => data.data.map((m) => ({
       id: m.id,
       name: m.name || m.id,
@@ -34,14 +42,12 @@ const MODEL_SOURCES = {
   },
   openai: {
     url: 'https://api.openai.com/v1/models',
-    keyField: 'openaiKey',
     parse: (data) => data.data.map((m) => ({ id: m.id, name: m.id, free: null })),
     hasPricing: false,
   },
 };
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = Object.keys(DEFAULTS);
 
 // Список экспертов строится из experts.js, чтобы не дублировать его в двух местах.
 for (const id of EXPERT_ORDER) {
@@ -67,6 +73,8 @@ for (const id of ['hotkeyWord', 'hotkeySentence', 'hotkeyParagraph']) {
 
 let models = [];
 let filter = 'free'; // 'free' | 'paid'
+let keys = { openrouterKey: '', openaiKey: '' };
+let activeProvider = 'openrouter';
 
 function setStatus(text, isError = false) {
   $('status').textContent = text;
@@ -76,6 +84,17 @@ function setStatus(text, isError = false) {
 
 function currentProvider() {
   return $('provider').value;
+}
+
+// Переносим то, что сейчас введено в поле, в память для текущего провайдера.
+function captureKeyFromInput() {
+  keys[`${activeProvider}Key`] = $('apiKey').value.trim();
+}
+
+function showKeyForProvider(provider) {
+  activeProvider = provider;
+  $('keyLabel').textContent = PROVIDER_LABELS[provider];
+  $('apiKey').value = keys[`${provider}Key`] ?? '';
 }
 
 function renderFilterButtons() {
@@ -110,12 +129,12 @@ function renderModels(selected) {
 async function loadModels(selected) {
   const provider = currentProvider();
   const source = MODEL_SOURCES[provider];
-  const key = $(source.keyField).value.trim();
+  const key = (keys[`${provider}Key`] ?? '').trim();
 
   if (provider === 'openai' && !key) {
     models = [];
     renderModels(selected);
-    setStatus('Введите ключ OpenAI, чтобы загрузить модели.', true);
+    setStatus('Введите ключ OpenAI в настройках (⚙), чтобы загрузить модели.', true);
     return;
   }
 
@@ -139,16 +158,36 @@ function readForm() {
     const el = $(key);
     data[key] = el.type === 'checkbox' ? el.checked : el.value.trim();
   }
-  return data;
+  captureKeyFromInput();
+  return { ...data, ...keys };
 }
 
 function syncExpertState() {
   $('expert').disabled = $('autoExpert').checked;
 }
 
+$('settingsBtn').addEventListener('click', () => {
+  const open = $('settingsPanel').hidden;
+  $('settingsPanel').hidden = !open;
+  $('settingsBtn').classList.toggle('active', open);
+});
+
+$('closeSettings').addEventListener('click', () => {
+  $('settingsPanel').hidden = true;
+  $('settingsBtn').classList.remove('active');
+});
+
 $('provider').addEventListener('change', async () => {
+  captureKeyFromInput();
+  showKeyForProvider(currentProvider());
   // Модель у каждого провайдера своя, сбрасываем выбор.
   await loadModels('');
+});
+
+// Ключ привязан к провайдеру: когда пользователь закончил ввод, подгружаем модели.
+$('apiKey').addEventListener('change', () => {
+  captureKeyFromInput();
+  loadModels($('model').value);
 });
 
 $('autoExpert').addEventListener('change', syncExpertState);
@@ -163,26 +202,10 @@ $('fltPaid').addEventListener('click', () => {
   renderModels($('model').value);
 });
 
-$('reloadModels').addEventListener('click', () => loadModels($('model').value));
-
-// Список моделей подгружаем сразу, как только введён ключ.
-for (const [provider, source] of Object.entries(MODEL_SOURCES)) {
-  $(source.keyField).addEventListener('change', () => {
-    if (currentProvider() === provider) loadModels($('model').value);
-  });
-}
-
-(async () => {
-  const stored = await chrome.storage.local.get(DEFAULTS);
-  for (const key of FIELDS) {
-    if (key === 'model') continue;
-    const el = $(key);
-    if (el.type === 'checkbox') el.checked = stored[key];
-    else el.value = stored[key];
-  }
-  syncExpertState();
-  await loadModels(stored.model);
-})();
+$('reloadModels').addEventListener('click', () => {
+  captureKeyFromInput();
+  loadModels($('model').value);
+});
 
 // Запись комбинации: нажмите клавиши в поле, например Alt + A. Нужен хотя бы один модификатор.
 $('pageHotkey').addEventListener('keydown', (e) => {
@@ -230,3 +253,18 @@ $('translatePage').addEventListener('click', async () => {
     setStatus('Страница не поддерживает перевод. Обновите её и попробуйте снова.', true);
   }
 });
+
+(async () => {
+  const stored = await chrome.storage.local.get(DEFAULTS);
+  for (const key of FIELDS) {
+    if (key === 'model') continue;
+    const el = $(key);
+    if (el.type === 'checkbox') el.checked = stored[key];
+    else el.value = stored[key];
+  }
+  keys = { openrouterKey: stored.openrouterKey, openaiKey: stored.openaiKey };
+  $('provider').value = stored.provider;
+  showKeyForProvider(stored.provider);
+  syncExpertState();
+  await loadModels(stored.model);
+})();

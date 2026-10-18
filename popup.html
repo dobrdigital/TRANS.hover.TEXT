@@ -28,9 +28,21 @@
       font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
 
-    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     header h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: .2px; }
-    header span { color: var(--muted); font-size: 12px; }
+    header span { color: var(--muted); font-size: 12px; margin-left: auto; margin-right: 10px; }
+
+    .icon-btn {
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .icon-btn:hover, .icon-btn.active { border-color: var(--accent); }
 
     .card {
       background: var(--card);
@@ -69,9 +81,6 @@
     textarea { resize: vertical; min-height: 64px; }
 
     small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
-
-    .row { display: flex; gap: 8px; align-items: center; }
-    .row > * { flex: 1; }
 
     /* Переключатели */
     .toggle {
@@ -123,6 +132,9 @@
     .seg button.active { background: var(--accent); color: #fff; }
     .seg button:disabled { opacity: .4; cursor: default; }
 
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+
     button.primary, button.ghost {
       border-radius: 8px;
       padding: 9px 12px;
@@ -135,10 +147,23 @@
     button.primary:hover { background: var(--accent-hover); }
     button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
     button.ghost:hover { border-color: var(--accent); }
-    button.small { padding: 6px 10px; font-size: 12px; font-weight: 500; }
+
+    /* Панель провайдера и ключа (открывается по ⚙) */
+    #settingsPanel { border-color: var(--accent); }
+    #settingsPanel .done {
+      margin-top: 10px;
+      width: 100%;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+    #settingsPanel .done:hover { border-color: var(--accent); }
 
     footer { margin-top: 12px; }
-    footer .row { gap: 8px; }
     #status { margin-top: 10px; min-height: 18px; color: var(--ok); font-size: 12px; }
     #status[data-error="true"] { color: var(--err); }
   </style>
@@ -147,22 +172,23 @@
   <header>
     <h1>TransHover</h1>
     <span>перевод при наведении</span>
+    <button id="settingsBtn" class="icon-btn" type="button" title="Провайдер и ключ API">⚙</button>
   </header>
 
-  <section class="card">
-    <h2>Провайдер и ключи</h2>
+  <section id="settingsPanel" class="card" hidden>
+    <h2>Провайдер и ключ API</h2>
     <label>Провайдер
       <select id="provider">
         <option value="openrouter">OpenRouter</option>
         <option value="openai">OpenAI</option>
       </select>
     </label>
-    <label>Ключ OpenRouter
-      <input id="openrouterKey" type="password" autocomplete="off" placeholder="sk-or-…">
+    <label>
+      <span id="keyLabel">Ключ OpenRouter</span>
+      <input id="apiKey" type="password" autocomplete="off" placeholder="Вставьте ключ">
     </label>
-    <label>Ключ OpenAI
-      <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…">
-    </label>
+    <small>Ключ хранится только на этом компьютере. Нажмите «Сохранить» внизу, чтобы применить.</small>
+    <button id="closeSettings" class="done" type="button">Готово</button>
   </section>
 
   <section class="card">
@@ -175,6 +201,17 @@
     <label style="margin-top: 10px;">
       <select id="model"></select>
       <small id="modelHint"></small>
+    </label>
+  </section>
+
+  <section class="card">
+    <h2>Эксперт</h2>
+    <label class="toggle">
+      <span>Автоопределение эксперта</span>
+      <input id="autoExpert" type="checkbox"><span class="switch"></span>
+    </label>
+    <label>Эксперт (при ручном выборе)
+      <select id="expert"></select>
     </label>
   </section>
 
@@ -208,14 +245,7 @@
   </section>
 
   <section class="card">
-    <h2>Эксперт и промпт</h2>
-    <label class="toggle">
-      <span>Автоопределение эксперта</span>
-      <input id="autoExpert" type="checkbox"><span class="switch"></span>
-    </label>
-    <label>Эксперт (при ручном выборе)
-      <select id="expert"></select>
-    </label>
+    <h2>Промпт и язык</h2>
     <label>Дополнительный промпт
       <textarea id="customPrompt" rows="3" placeholder="Например: сохраняй английские термины в скобках"></textarea>
     </label>
