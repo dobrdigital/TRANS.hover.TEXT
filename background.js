@@ -66,7 +66,9 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 async function translateText(text, mode) {
   const s = await chrome.storage.local.get(DEFAULTS);
-  return complete(s, buildSystem(s, MODES[mode] ?? MODES.sentence), text);
+  // Явная рамка: слабые модели на голом слове иногда просят «предоставить текст».
+  const userText = `Переведи текст, заключённый в кавычки, и выведи только перевод.\n«${text}»`;
+  return complete(s, buildSystem(s, MODES[mode] ?? MODES.sentence), userText);
 }
 
 async function translatePage(items) {
